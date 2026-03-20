@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "./commonpb";
+
+message Empty {}
+
+// 基础请求体都包含 requestId 一个字段
+message BaseRequest {
+  string requestId = 1;
+}
+
+// 基础返回体都包含 code 和 msg 两个字段
+message BaseResponse {
+  int32 code = 1;
+  string msg = 2;
+}
+
+// 过滤器
+message Filter {
+  string key = 1;
+  repeated string values = 2;
+}
+
+// 分页信息
+message Pagination {
+  int32 pageNumber = 1;
+  int32 pageSize = 2;
+  int64 total = 3;
+}
+
+// 服务自检接口通用返回体
+message CheckResponse {
+  int32 code = 1; // Status code of the response.
+  string msg = 2; // Message accompanying the status code.
+  map<string,string> data = 3; // 如果失败，返回具体模块不可用原因
+}
