@@ -41,7 +41,7 @@ func TestRedisClient(t *testing.T) {
 	}
 
 	go func() {
-		err1 := client.SubscribeToStream(ctx, chainID, subChainID,
+		err1 := client.SubscribeFromStream(ctx, chainID, subChainID,
 			groupName, consumerName, handler, false, 10, 0)
 		assert.NoError(t, err1)
 	}()

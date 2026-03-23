@@ -27,14 +27,14 @@ type RedisInterface interface {
 	SubscribeByStreamId(ctx context.Context, streamId, groupName, consumerName string,
 		handler func(data []byte, messageId string) error, wantTrimOldMsg bool, ackCountThreshold int64,
 		block time.Duration, valueKey string) error
-	SubscribeToStream(ctx context.Context, sid, contractName,
+	SubscribeTradeGuardEventFromStream(ctx context.Context, chainType, chainConfName,
+		contractType, contractConfName, groupName, consumerName string, handler func(event TradeGuardEvent) error,
+		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
+	SubscribeFromStream(ctx context.Context, sid, contractName,
 		groupName, consumerName string, handler func(*common.ContractEventInfo),
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
-	SubscribeToStreamWithHandlerError(ctx context.Context, sid, contractName,
+	SubscribeFromStreamWithHandlerError(ctx context.Context, sid, contractName,
 		groupName, consumerName string, handler func(*common.ContractEventInfo) error,
-		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
-	SubscribeToStreamv100tdh(ctx context.Context, chainID, subChainID, contractName,
-		eventName, groupName, consumerName string, handler func(*common.ContractEventInfo),
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
 	SetLatestBlockHeight(ctx context.Context, chainID string, height int64) error
 	GetLatestBlockHeight(ctx context.Context, chainID string) (int64, error)

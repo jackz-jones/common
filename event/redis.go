@@ -160,6 +160,50 @@ func (p *RedisClient) XAddEventAndSetBlockHeightInPipeline(ctx context.Context,
 	return nil
 }
 
+// PublishTradeGuardEventToStream publishes an TradeGuard event to a Redis channel.
+//
+//	@Description:
+//	@receiver p
+//	@param ctx
+//	@param event
+//	@param chainType 链类型
+//	@param chainConfName 链配置名称
+//	@param contractConfName 合约配置名称
+//	@param evenName 事件名称
+//	@return error
+func (p *RedisClient) PublishTradeGuardEventToStream(ctx context.Context, event interface{}, chainType,
+	chainConfName, contractType, contractConfName, evenName string) error {
+	message, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event: %v", err)
+	}
+
+	// 封装成数字海关统一的事件结构
+	tradeGuardEvent := TradeGuardEvent{
+		EventName:    evenName,
+		ChainType:    chainType,
+		ChainName:    chainConfName,
+		ContractType: contractType,
+		ContractName: contractConfName,
+		EventData:    message,
+	}
+
+	tradeGuardEventMessage, err := json.Marshal(tradeGuardEvent)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tradeGuardEvent: %v", err)
+	}
+
+	// 添加事件到 redis
+	_, err = p.RedisClient.XAdd(ctx, &redis.XAddArgs{
+		Stream: strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#"),
+		Values: map[string]interface{}{RedisEventKey: tradeGuardEventMessage},
+	}).Result()
+	if err != nil {
+		return fmt.Errorf("failed to publish event stream to redis: %v", err)
+	}
+	return nil
+}
+
 // PublishEventToStream publishes an event to a Redis channel.
 //
 //	@Description:
@@ -422,7 +466,41 @@ func (p *RedisClient) SubscribeByStreamId(ctx context.Context, streamId, groupNa
 	}
 }
 
-// SubscribeToStream subscribes to a Redis stream and processes events using the provided handler function.
+// SubscribeTradeGuardEventFromStream subscribes to a Redis stream and processes events using the provided
+// handler function.
+//
+//	@Description:
+//	@receiver p
+//	@param ctx
+//	@param chainType 链类型
+//	@param chainConfName 链配置名称
+//	@param contractConfName 合约配置名称
+//	@param groupName
+//	@param consumerName
+//	@param handler
+//	@return error
+func (p *RedisClient) SubscribeTradeGuardEventFromStream(ctx context.Context, chainType, chainConfName,
+	contractType, contractConfName, groupName, consumerName string, handler func(event TradeGuardEvent) error,
+	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
+	streamId := strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#")
+
+	// 转换 handler
+	handlerWithError := func(data []byte, messageId string) error {
+
+		// 转成业务结构
+		var tradeGuardEvent TradeGuardEvent
+		if err := json.Unmarshal(data, &tradeGuardEvent); err != nil {
+			return fmt.Errorf("failed to unmarshal business event data for msg %s for stream %s group %s consumer %s,"+
+				" %v", messageId, streamId, groupName, consumerName, err)
+		}
+
+		return handler(tradeGuardEvent)
+	}
+	return p.SubscribeByStreamId(ctx, streamId, groupName, consumerName, handlerWithError, wantTrimOldMsg,
+		ackCountThreshold, block, RedisEventKey)
+}
+
+// SubscribeFromStream subscribes to a Redis stream and processes events using the provided handler function.
 //
 //	@Description:
 //	@receiver p
@@ -436,7 +514,7 @@ func (p *RedisClient) SubscribeByStreamId(ctx context.Context, streamId, groupNa
 //	@param ackCountThreshold
 //	@param block 消费阻塞时间，比如设置 time.Second * 10，表示如果当前没有消息可读就会暂停 10s，之后再读，如果当前有消息就会持续读。
 //	@return error
-func (p *RedisClient) SubscribeToStream(ctx context.Context, sid, contractName,
+func (p *RedisClient) SubscribeFromStream(ctx context.Context, sid, contractName,
 	groupName, consumerName string, handler func(*common.ContractEventInfo),
 	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
 	streamId := strings.Join([]string{sid, contractName}, "#")
@@ -534,7 +612,7 @@ func (p *RedisClient) SubscribeTopicFromStreamWithHandlerError(ctx context.Conte
 
 }
 
-// SubscribeToStreamWithHandlerError subscribes to a Redis stream and processes events using
+// SubscribeFromStreamWithHandlerError subscribes to a Redis stream and processes events using
 // the provided handler function, and catch handler error.
 //
 //	@Description:
@@ -549,7 +627,7 @@ func (p *RedisClient) SubscribeTopicFromStreamWithHandlerError(ctx context.Conte
 //	@param ackCountThreshold
 //	@param block 消费阻塞时间，比如设置 time.Second * 10，表示如果当前没有消息可读就会暂停 10s，之后再读，如果当前有消息就会持续读。
 //	@return error
-func (p *RedisClient) SubscribeToStreamWithHandlerError(ctx context.Context, sid, contractName,
+func (p *RedisClient) SubscribeFromStreamWithHandlerError(ctx context.Context, sid, contractName,
 	groupName, consumerName string, handler func(*common.ContractEventInfo) error,
 	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
 	streamId := strings.Join([]string{sid, contractName}, "#")
@@ -567,44 +645,6 @@ func (p *RedisClient) SubscribeToStreamWithHandlerError(ctx context.Context, sid
 		return handler(&event)
 	}
 	return p.SubscribeByStreamId(ctx, streamId, groupName, consumerName, handler2, wantTrimOldMsg,
-		ackCountThreshold, block, RedisEventKey)
-}
-
-// SubscribeToStreamv100tdh subscribes to a Redis stream and processes events using the provided handler function.
-//
-//	@Description:
-//	@receiver p
-//	@param ctx
-//	@param chainID
-//	@param subChainID
-//	@param contractName
-//	@param eventName
-//	@param groupName
-//	@param consumerName
-//	@param handler
-//	@param wantTrimOldMsg
-//	@param ackCountThreshold
-//	@param block 消费阻塞时间，比如设置 time.Second * 10，表示如果当前没有消息可读就会暂停 10s，之后再读，如果当前有消息就会持续读。
-//	@return error
-func (p *RedisClient) SubscribeToStreamv100tdh(ctx context.Context, chainID, subChainID, contractName,
-	eventName, groupName, consumerName string, handler func(*common.ContractEventInfo),
-	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
-	streamId := strings.Join([]string{chainID, subChainID, contractName, eventName}, "#")
-
-	// 转换 handler
-	handlerWithError := func(data []byte, messageId string) error {
-
-		// 业务解析为 event 结构
-		var event common.ContractEventInfo
-		if err := json.Unmarshal(data, &event); err != nil {
-			return fmt.Errorf("failed to unmarshal event data for msg %s for stream %s group %s consumer %s, %v",
-				messageId, streamId, groupName, consumerName, err)
-		}
-
-		handler(&event)
-		return nil
-	}
-	return p.SubscribeByStreamId(ctx, streamId, groupName, consumerName, handlerWithError, wantTrimOldMsg,
 		ackCountThreshold, block, RedisEventKey)
 }
 
