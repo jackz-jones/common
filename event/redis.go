@@ -656,9 +656,9 @@ func (p *RedisClient) SubscribeFromStreamWithHandlerError(ctx context.Context, s
 //	@param chainID
 //	@param height
 //	@return error
-func (p *RedisClient) SetLatestBlockHeight(ctx context.Context, chainID string, height int64) error {
+func (p *RedisClient) SetLatestBlockHeight(ctx context.Context, chainID string, height uint64) error {
 	err := p.RedisClient.Set(ctx, strings.Join([]string{BlockHeightStr, chainID}, "#"),
-		strconv.FormatInt(height, 10), 0).Err()
+		strconv.FormatUint(height, 10), 0).Err()
 	if err != nil {
 		return fmt.Errorf("failed to set redis kv, %v", err)
 	}
@@ -673,17 +673,17 @@ func (p *RedisClient) SetLatestBlockHeight(ctx context.Context, chainID string, 
 //	@param chainID
 //	@return int64
 //	@return error
-func (p *RedisClient) GetLatestBlockHeight(ctx context.Context, chainID string) (int64, error) {
+func (p *RedisClient) GetLatestBlockHeight(ctx context.Context, chainID string) (uint64, error) {
 	val, err := p.RedisClient.Get(ctx, strings.Join([]string{BlockHeightStr, chainID}, "#")).Result()
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return 0, nil
 		}
-		return -1, fmt.Errorf("failed to get redis kv, %v", err)
+		return 0, fmt.Errorf("failed to get redis kv, %v", err)
 	}
-	height, err := strconv.ParseInt(val, 10, 64)
+	height, err := strconv.ParseUint(val, 10, 64)
 	if err != nil {
-		return -1, fmt.Errorf("failed to atoi string[%s], %v", val, err)
+		return 0, fmt.Errorf("failed to atoi string[%s], %v", val, err)
 	}
 	return height, nil
 }

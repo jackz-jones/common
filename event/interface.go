@@ -36,8 +36,8 @@ type RedisInterface interface {
 	SubscribeFromStreamWithHandlerError(ctx context.Context, sid, contractName,
 		groupName, consumerName string, handler func(*common.ContractEventInfo) error,
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
-	SetLatestBlockHeight(ctx context.Context, chainID string, height int64) error
-	GetLatestBlockHeight(ctx context.Context, chainID string) (int64, error)
+	SetLatestBlockHeight(ctx context.Context, chainID string, height uint64) error
+	GetLatestBlockHeight(ctx context.Context, chainID string) (uint64, error)
 	GetMaxPending(ctx context.Context, streamId string) (int64, error)
 	TrimOldMsg(ctx context.Context, streamId string, ackCountThreshold int64) (int64, error)
 	GetLastAckMsgId(ctx context.Context, streamId, lastDeliveredID string,
