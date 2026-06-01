@@ -1,7 +1,7 @@
 package event
 
-// TradeGuardEvent
-type TradeGuardEvent struct {
+// CrossChainEvent 跨链协议统一事件结构
+type CrossChainEvent struct {
 	EventName    string `json:"eventName"`    // 事件名称
 	ChainType    string `json:"chainType"`    // 链类型
 	ChainName    string `json:"chainName"`    // 链名称

@@ -27,8 +27,8 @@ type RedisInterface interface {
 	SubscribeByStreamId(ctx context.Context, streamId, groupName, consumerName string,
 		handler func(data []byte, messageId string) error, wantTrimOldMsg bool, ackCountThreshold int64,
 		block time.Duration, valueKey string) error
-	SubscribeTradeGuardEventFromStream(ctx context.Context, chainType, chainConfName,
-		contractType, contractConfName, groupName, consumerName string, handler func(event TradeGuardEvent) error,
+	SubscribeCrossChainEventFromStream(ctx context.Context, chainType, chainConfName,
+		contractType, contractConfName, groupName, consumerName string, handler func(event CrossChainEvent) error,
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
 	SubscribeFromStream(ctx context.Context, sid, contractName,
 		groupName, consumerName string, handler func(*common.ContractEventInfo),

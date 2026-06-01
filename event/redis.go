@@ -160,7 +160,7 @@ func (p *RedisClient) XAddEventAndSetBlockHeightInPipeline(ctx context.Context,
 	return nil
 }
 
-// PublishTradeGuardEventToStream publishes an TradeGuard event to a Redis channel.
+// PublishCrossChainEventToStream publishes a cross-chain event to a Redis channel.
 //
 //	@Description:
 //	@receiver p
@@ -171,15 +171,15 @@ func (p *RedisClient) XAddEventAndSetBlockHeightInPipeline(ctx context.Context,
 //	@param contractConfName 合约配置名称
 //	@param evenName 事件名称
 //	@return error
-func (p *RedisClient) PublishTradeGuardEventToStream(ctx context.Context, event interface{}, chainType,
+func (p *RedisClient) PublishCrossChainEventToStream(ctx context.Context, event interface{}, chainType,
 	chainConfName, contractType, contractConfName, evenName string) error {
 	message, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %v", err)
 	}
 
-	// 封装成数字海关统一的事件结构
-	tradeGuardEvent := TradeGuardEvent{
+	// 封装成跨链协议统一的事件结构
+	crossChainEvent := CrossChainEvent{
 		EventName:    evenName,
 		ChainType:    chainType,
 		ChainName:    chainConfName,
@@ -188,15 +188,15 @@ func (p *RedisClient) PublishTradeGuardEventToStream(ctx context.Context, event 
 		EventData:    message,
 	}
 
-	tradeGuardEventMessage, err := json.Marshal(tradeGuardEvent)
+	crossChainEventMessage, err := json.Marshal(crossChainEvent)
 	if err != nil {
-		return fmt.Errorf("failed to marshal tradeGuardEvent: %v", err)
+		return fmt.Errorf("failed to marshal crossChainEvent: %v", err)
 	}
 
 	// 添加事件到 redis
 	_, err = p.RedisClient.XAdd(ctx, &redis.XAddArgs{
 		Stream: strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#"),
-		Values: map[string]interface{}{RedisEventKey: tradeGuardEventMessage},
+		Values: map[string]interface{}{RedisEventKey: crossChainEventMessage},
 	}).Result()
 	if err != nil {
 		return fmt.Errorf("failed to publish event stream to redis: %v", err)
@@ -466,35 +466,36 @@ func (p *RedisClient) SubscribeByStreamId(ctx context.Context, streamId, groupNa
 	}
 }
 
-// SubscribeTradeGuardEventFromStream subscribes to a Redis stream and processes events using the provided
-// handler function.
+// SubscribeCrossChainEventFromStream subscribes to a Redis stream and processes cross-chain events
+// using the provided handler function.
 //
 //	@Description:
 //	@receiver p
 //	@param ctx
 //	@param chainType 链类型
 //	@param chainConfName 链配置名称
+//	@param contractType 合约类型
 //	@param contractConfName 合约配置名称
 //	@param groupName
 //	@param consumerName
 //	@param handler
 //	@return error
-func (p *RedisClient) SubscribeTradeGuardEventFromStream(ctx context.Context, chainType, chainConfName,
-	contractType, contractConfName, groupName, consumerName string, handler func(event TradeGuardEvent) error,
+func (p *RedisClient) SubscribeCrossChainEventFromStream(ctx context.Context, chainType, chainConfName,
+	contractType, contractConfName, groupName, consumerName string, handler func(event CrossChainEvent) error,
 	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
 	streamId := strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#")
 
 	// 转换 handler
 	handlerWithError := func(data []byte, messageId string) error {
 
-		// 转成业务结构
-		var tradeGuardEvent TradeGuardEvent
-		if err := json.Unmarshal(data, &tradeGuardEvent); err != nil {
+		// 转成跨链协议事件结构
+		var crossChainEvent CrossChainEvent
+		if err := json.Unmarshal(data, &crossChainEvent); err != nil {
 			return fmt.Errorf("failed to unmarshal business event data for msg %s for stream %s group %s consumer %s,"+
 				" %v", messageId, streamId, groupName, consumerName, err)
 		}
 
-		return handler(tradeGuardEvent)
+		return handler(crossChainEvent)
 	}
 	return p.SubscribeByStreamId(ctx, streamId, groupName, consumerName, handlerWithError, wantTrimOldMsg,
 		ackCountThreshold, block, RedisEventKey)
