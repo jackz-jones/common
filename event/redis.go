@@ -24,6 +24,9 @@ const BlockHeightStr = "block_height"
 const RedisAlreadyExists = "Consumer Group name already exists"
 const RedisDataKey = "data"
 
+// CrossChainEventPrefix is the prefix used to store the cross chain event data in Redis.
+const CrossChainEventPrefix = "CrossChainEvent"
+
 // RedisClient is a simple struct to hold the Redis client.
 type RedisClient struct {
 	RedisClient RedisNode
@@ -166,13 +169,12 @@ func (p *RedisClient) XAddEventAndSetBlockHeightInPipeline(ctx context.Context,
 //	@receiver p
 //	@param ctx
 //	@param event
-//	@param chainType 链类型
-//	@param chainConfName 链配置名称
-//	@param contractConfName 合约配置名称
+//	@param chainInfoId 链信息ID
+//	@param contractInfoId 合约信息ID
 //	@param evenName 事件名称
 //	@return error
-func (p *RedisClient) PublishCrossChainEventToStream(ctx context.Context, event interface{}, chainType,
-	chainConfName, contractType, contractConfName, evenName string) error {
+func (p *RedisClient) PublishCrossChainEventToStream(ctx context.Context, event interface{}, chainInfoId,
+	contractInfoId uint, evenName string) error {
 	message, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %v", err)
@@ -180,12 +182,10 @@ func (p *RedisClient) PublishCrossChainEventToStream(ctx context.Context, event 
 
 	// 封装成跨链协议统一的事件结构
 	crossChainEvent := CrossChainEvent{
-		EventName:    evenName,
-		ChainType:    chainType,
-		ChainName:    chainConfName,
-		ContractType: contractType,
-		ContractName: contractConfName,
-		EventData:    message,
+		EventName:      evenName,
+		ChainInfoId:    chainInfoId,
+		ContractInfoId: contractInfoId,
+		EventData:      message,
 	}
 
 	crossChainEventMessage, err := json.Marshal(crossChainEvent)
@@ -195,7 +195,7 @@ func (p *RedisClient) PublishCrossChainEventToStream(ctx context.Context, event 
 
 	// 添加事件到 redis
 	_, err = p.RedisClient.XAdd(ctx, &redis.XAddArgs{
-		Stream: strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#"),
+		Stream: fmt.Sprintf("%s#%d#%d", CrossChainEventPrefix, chainInfoId, contractInfoId),
 		Values: map[string]interface{}{RedisEventKey: crossChainEventMessage},
 	}).Result()
 	if err != nil {
@@ -472,18 +472,19 @@ func (p *RedisClient) SubscribeByStreamId(ctx context.Context, streamId, groupNa
 //	@Description:
 //	@receiver p
 //	@param ctx
-//	@param chainType 链类型
-//	@param chainConfName 链配置名称
-//	@param contractType 合约类型
-//	@param contractConfName 合约配置名称
+//	@param chainInfoId 链信息 ID
+//	@param contractInfoId 合约信息 ID
 //	@param groupName
 //	@param consumerName
 //	@param handler
+//	@param wantTrimOldMsg
+//	@param ackCountThreshold
+//	@param block 消费阻塞时间，比如设置 time.Second * 10，表示如果当前没有消息可读就会暂停 10s，之后再读，如果当前有消息就会持续读。
 //	@return error
-func (p *RedisClient) SubscribeCrossChainEventFromStream(ctx context.Context, chainType, chainConfName,
-	contractType, contractConfName, groupName, consumerName string, handler func(event CrossChainEvent) error,
-	wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error {
-	streamId := strings.Join([]string{chainType, chainConfName, contractType, contractConfName}, "#")
+func (p *RedisClient) SubscribeCrossChainEventFromStream(ctx context.Context, chainInfoId, contractInfoId uint,
+	groupName, consumerName string, handler func(event CrossChainEvent) error, wantTrimOldMsg bool,
+	ackCountThreshold int64, block time.Duration) error {
+	streamId := fmt.Sprintf("%s#%d#%d", CrossChainEventPrefix, chainInfoId, contractInfoId)
 
 	// 转换 handler
 	handlerWithError := func(data []byte, messageId string) error {

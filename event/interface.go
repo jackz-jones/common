@@ -18,6 +18,8 @@ type RedisInterface interface {
 	PublishEventToStream(ctx context.Context, event *common.ContractEventInfo,
 		sid, topic string, contractType, partition int) error
 	PublishDataToStream(ctx context.Context, data interface{}, streamId string) error
+	PublishCrossChainEventToStream(ctx context.Context, event interface{}, chainInfoId,
+		contractInfoId uint, evenName string) error
 	SubscribeDataFromStream(ctx context.Context, streamId,
 		groupName, consumerName string, handler func([]byte) error,
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
@@ -27,9 +29,9 @@ type RedisInterface interface {
 	SubscribeByStreamId(ctx context.Context, streamId, groupName, consumerName string,
 		handler func(data []byte, messageId string) error, wantTrimOldMsg bool, ackCountThreshold int64,
 		block time.Duration, valueKey string) error
-	SubscribeCrossChainEventFromStream(ctx context.Context, chainType, chainConfName,
-		contractType, contractConfName, groupName, consumerName string, handler func(event CrossChainEvent) error,
-		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
+	SubscribeCrossChainEventFromStream(ctx context.Context, chainInfoId, contractInfoId uint,
+		groupName, consumerName string, handler func(event CrossChainEvent) error, wantTrimOldMsg bool,
+		ackCountThreshold int64, block time.Duration) error
 	SubscribeFromStream(ctx context.Context, sid, contractName,
 		groupName, consumerName string, handler func(*common.ContractEventInfo),
 		wantTrimOldMsg bool, ackCountThreshold int64, block time.Duration) error
