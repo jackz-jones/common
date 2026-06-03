@@ -16,9 +16,15 @@ import (
 // @param dbType 数据库类型：mysql、postgres、kingbase_mysql、kingbase_pgsql
 // @param dsn 数据库连接字符串
 // @param modelDst 库表列表
+// @param conf 可选的 gorm.Config，若传 nil 则使用默认空配置，业务层可按需自定义（如禁用日志、开启预处理等）
 // @return db
 // @return err
-func InitGormDB(dbType, dsn string, modelDst ...interface{}) (db *gorm.DB, err error) {
+func InitGormDB(dbType, dsn string, modelDst []interface{}, conf *gorm.Config) (db *gorm.DB, err error) {
+	// 若未传入 gorm.Config，使用默认空配置
+	if conf == nil {
+		conf = &gorm.Config{}
+	}
+
 	switch dbType {
 	case DBTypeMysql, DBTypeKingBaseMysql:
 		db, err = gorm.Open(mysql.New(mysql.Config{
@@ -28,9 +34,9 @@ func InitGormDB(dbType, dsn string, modelDst ...interface{}) (db *gorm.DB, err e
 			DisableDatetimePrecision:  DisableDatetimePrecision,
 			DontSupportRenameIndex:    DontSupportRenameIndex,
 			DontSupportRenameColumn:   DontSupportRenameColumn,
-		}), &gorm.Config{})
+		}), conf)
 	case DBTypeKingBasePgsql, DBTypePostgres:
-		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		db, err = gorm.Open(postgres.Open(dsn), conf)
 	default:
 		return nil, errors.New("unknown db type")
 	}
